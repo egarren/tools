@@ -5,10 +5,8 @@ library(ggplot2)
 library(ggpubr)
 library(xlsx)
 
-setwd("~/Documents/5. DMS/Carroll Lab/2022 Cxcl13_Mb1 PDL1/2024.10.22 ELISA")
-
 #import data and metadata
-metadata<-read_excel("~/Documents/5. DMS/Carroll Lab/Databases/Mouse Record.xlsx",guess_max=10000) 
+metadata<-read_excel("Mouse Record.xlsx",guess_max=10000) 
 metadata$mouse<-as.character(metadata$mouse)
 plate = "plate1"
 raw<-read_excel(paste0(plate,"_data.xlsx"))
@@ -29,7 +27,6 @@ std_df$conc = std1_conc / (dil ^ std_df$dilution)
 std_df$conc[std_df$sample=="BLANK"] = 0
 df2<-df[df$sample %in% std_df$sample,]
 df2<-left_join(df2,std_df,by="sample")
-df2<-df2[1:4,] #filter for OD within dynamic range
 y=log(df2$conc,base=10)
 x=df2$Data
 plot(y ~ x)
