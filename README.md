@@ -1,5 +1,6 @@
 # tools
 Random tools 
 
-Anki: script to convert notes in Word Doc to Anki flaschards\
-cyrpto.R: script to help generate crpyto P/L for turbotax 
+Anki: convert notes in Word Doc to Anki flaschards\
+cyrpto.R: generate crpyto P/L for turbotax \
+ELISA.R: calculate and plot ELISA data
