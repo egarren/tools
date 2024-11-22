@@ -1,0 +1,56 @@
+// Batch convert LSM files to colour composite and RGB
+//
+// This macro batch converts.lsm files to RGB and composite TIFF's
+// Using the channel colours from the LSM
+//
+
+// Ask user for source and destination folders
+// Source = dir1 and should only contain .lsm files
+// Destination = dir2 and should be different to dir1 and empty
+dir1 = getDirectory("Choose Source Directory ");
+dir2 = getDirectory("Choose Destination Directory ");
+
+// Create a list of files in the source folder dir1
+list = getFileList(dir1);
+
+// Set batch processing mode, false = show processing, true = blank screen
+setBatchMode(false);
+
+// Create for next loop for number of files (list.length) in source folder (dir1) = i
+for (i=0; i<list.length; i++) 
+{
+showProgress(i+1, list.length);
+
+// Open file number i from dir1
+s = "open=["+dir1+list[i]+"] autoscale color_mode=Grayscale rois_import=[ROI manager] view=Hyperstack stack_order=XYCZT";
+run("Bio-Formats Importer", s);
+
+run("Blue");
+Stack.setChannel(2);
+run("Green");
+Stack.setChannel(3);
+run("Red");
+Stack.setChannel(4);
+run("Cyan");
+Property.set("CompositeProjection", "Sum");
+Stack.setDisplayMode("composite");
+run("RGB Color", "slices keep");
+
+ext2="_stack.avi";
+f="compression=JPEG frame=7 save=["+dir2+list[i]+ext2+"]";
+run("AVI... ", f);
+
+run("3D Project...", "projection=[Brightest Point] axis=Y-Axis slice=5 initial=0 total=360 rotation=10 lower=1 upper=255 opacity=0 surface=100 interior=50 interpolate");
+
+ext="_3D.avi";
+f="compression=JPEG frame=7 save=["+dir2+list[i]+ext+"]";
+run("AVI... ", f);
+
+
+// Tidy up
+close();
+close();
+close();
+
+// Next image 
+}
