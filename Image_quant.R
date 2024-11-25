@@ -56,10 +56,6 @@ ggbarplot(df[df$isotype=="igg" & df$location=="nuc",], x = "tx2", y = "MFI", #co
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
 
 df<-mfi
-# df$tx2[df$tx2=="564homo.Bcl6+Tam"]<-"564homo"
-df<-df[-sample(which(df$tx2=="neg"),35000),]
-df$tx2[sample(which(df$tx2=="564homo.Icos"),30000)]<-"neg"
-df$tx2[sample(which(df$tx2=="564homo"),30000)]<-"564homo+Tam"
 mfi2<-df
 df<-df[df$tx2 %in% c("564homo","564homo.Icos","564homo.SAP","neg"),]
 df<-df %>%mutate (tx2=factor(tx2,levels=c("564homo","564homo.Icos","564homo.SAP","neg")))
@@ -84,13 +80,8 @@ ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fi
 ggsave2("ana_mfi2.png",width=2, height=2,device="png")
 
 
-df<-mfi2
+df<-mfi
 df<-df[df$tx2 %in% c("564homo+Tam","564homo.Bcl6+Tam"),]
-df<-df[sample(nrow(df),20000),]
-df<-df[-sample(which(df$tx2=="564homo+Tam"),5000),]
-df$tx2[sample(which(df$tx2=="564homo.Bcl6+Tam"),8300)]<-"564homo+Tam"
-df$tx2[sample(which(df$tx2=="564homo+Tam"),8300)]<-"564homo.Bcl6+Tam"
-df<-df %>%mutate (tx2=factor(tx2,levels=c("564homo+Tam","564homo.Bcl6+Tam")))
 ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fill = "tx2",
          palette = c("grey30", "#ED7D31"),
          add = "boxplot", add.params = list(fill = "white"))+
@@ -151,6 +142,7 @@ df$mouse<-as.numeric(gsub(".oir","",df$mouse))
 df$isotype<-NA
 for(i in unique(df$Ch)){
   df$isotype[df$Ch==i]<-str_split_i(df$file,"-",i)[df$Ch==i]
+  if(i==1){df$isotype[df$Ch==i]<-"dapi"}
   if(i==4){df$isotype[df$Ch==i]<-"cd31"}
 }
 df<-left_join(df,meta[,c("mouse","tx2")],by="mouse")
