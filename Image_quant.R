@@ -10,6 +10,12 @@ metadata<-read_excel("Mouse Record.xlsx",guess_max=10000) #define path\
 meta<-metadata[,c("mouse","Gender","Age","Treatment","tx2")]
 
 ### ANA quantification
+simplify_tx <- function(df){
+  df$tx2[df$tx2 %in% c("BMchim.564.CD45.1.Mb1-PDL1.CD45.1.2","BMchim.564.CD45.1.CD45.1.2")]<-"BMchim.564"
+  df$tx2[df$tx2 %in% c("564homo+CD45.1+CD45.1.2","564homo+CD45.1+Mb1-PDL1.1.2","564homo+CD45.1+PD1-CD45.1.2")]<-"564homo"
+  df$tx2[df$tx2 %in% c("564homo.Cxcl13-PDL1+CD45.1+PD1-CD45.1.2")]<-"564homo.Cxcl13-PDL1"
+  return(df)
+}
 avg.list<-list()
 mfi.list<-list()
 for(i in c("nuc","cyto")){
@@ -48,86 +54,70 @@ for(i in c("nuc","cyto")){
 }
 avg<-do.call("rbind", avg.list)
 mfi<-do.call("rbind", mfi.list)
+
 df<-avg
-df<-df[df$tx2 %in% c("564homo","564homo.Icos","564homo.SAP"),]
-ggbarplot(df[df$isotype=="igg" & df$location=="nuc",], x = "tx2", y = "MFI", #color = "location",
-          add = c("mean_sd","jitter"), #palette = c("#00AFBB", "#E7B800"),
-          position = position_dodge())+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+df<-simplify_tx(df)
+df$mouse<-as.factor(df$mouse)
+for(i in unique(df$isotype)){
+  for(j in unique(df$location)){
+    ggbarplot(df[df$isotype==i & df$location==j,], x = "tx2", y = "MFI", #color = "mouse",
+              add = c("mean_sd"), #palette = c("#00AFBB", "#E7B800"),
+              position = position_dodge())+
+      geom_jitter(aes(color=mouse))+
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+    ggsave2(paste0("./output/avg_ANA",i,"_",j,".png"),width=6, height=6,device="png")
+  }
+}
+df<-df[df$isotype %in% c("igg","igg2c","igg2a"),]
+write.csv(df[order(df$tx2,df$isotype),],"./prism/avg_ANA_mfi.csv")
 
 df<-mfi
-mfi2<-df
-df<-df[df$tx2 %in% c("564homo","564homo.Icos","564homo.SAP","neg"),]
-df<-df %>%mutate (tx2=factor(tx2,levels=c("564homo","564homo.Icos","564homo.SAP","neg")))
-ggbarplot(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", #color = "location",
-          # add = c("mean_sd","jitter"), #palette = c("#00AFBB", "#E7B800"),
-          add = c("mean_sd"),
-          position = position_dodge())+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fill = "tx2",
-         palette = c("grey30", "#4472C4", "#FF0000","white"),
-         add = "boxplot", add.params = list(fill = "white"))+
-  stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.value")+ # Add significance levels
-  stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)+
-  theme(legend.position="right",axis.title.x=element_blank(),axis.text.x=element_blank())
-ggsave2("ana_mfi_stats.png",width=4, height=4,device="png")
-ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fill = "tx2",
-         palette = c("grey30", "#4472C4", "#FF0000","white"),
-         add = "boxplot", add.params = list(fill = "white"))+
-  # stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.value")+ # Add significance levels
-  # stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)+
-  theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
-ggsave2("ana_mfi2.png",width=2, height=2,device="png")
+df<-simplify_tx(df)
+df$mouse<-as.factor(df$mouse)
+for(i in unique(df$isotype)){
+  for(j in unique(df$location)){
+    ggviolin(df[df$isotype==i&df$location==j,], x = "tx2", y = "MFI", #fill = "tx2",
+             add = "boxplot", add.params = list(fill = "white"))+
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+    ggsave2(paste0("./output/ANA_",i,"_",j,".png"),width=6, height=6,device="png")
+  }
+}
+write.csv(df[order(df$tx2,df$isotype),],"./prism/ANA_mfi.csv")
+
+comparisons<-list(c("564homo","564homo.Cxcl13-PDL1"),c("564homo","564homo.Mb1-PDL1"),
+                  c("BMchim.564","BMchim.Cxcl13-PDL1.564"),c("BMchim.564","BMchim.564-Mb1-PDL1"))
+for(k in c(1:length(comparisons))){
+  comp=comparisons[[k]]
+  df2<-df[df$tx2 %in%comp,]
+  for(i in unique(df2$isotype)){
+    for(j in unique(df2$location)){
+      df3<-df2[df2$isotype==i&df2$location==j,]
+      if(i=="igg2c_mfi"){iso="IgG2c"}
+      if(i=="igg2a_mfi"){iso="IgG2a"}
+      if(i=="igg_mfi"){iso="IgG"}
+      if(j=="nuc"){loc="Nuclear"}
+      if(j=="cyto"){loc="Cytoplasmic"}
+      ggviolin(df3, x = "tx2", y = "MFI", fill = "tx2",
+               palette = c("grey30","white"),
+               add = "boxplot", add.params = list(fill = "white"))+
+        labs(y=paste0(loc," ",iso," (MFI)"))+
+        stat_compare_means(label.y = max(df3$MFI,na.rm=T)*1.1,label="p.signif",comparisons=list(comp))+
+        theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
+      ggsave2(paste0("./output/ANA_stat_comp",k,"_",i,"_",j,".png"),width=2.5, height=3,device="png")
+    }
+  }
+}
 
 
-df<-mfi
-df<-df[df$tx2 %in% c("564homo+Tam","564homo.Bcl6+Tam"),]
-ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fill = "tx2",
-         palette = c("grey30", "#ED7D31"),
-         add = "boxplot", add.params = list(fill = "white"))+
-  # stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.value")+ # Add significance levels
-  stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)+
-  theme(legend.position="right",axis.title.x=element_blank(),axis.text.x=element_blank())
-ggsave2("ana_mfi_stats_bcl6.png",width=4, height=4,device="png")
-ggviolin(df[df$isotype=="igg_mfi"&df$location=="nuc",], x = "tx2", y = "MFI", fill = "tx2",
-         palette = c("grey30", "#ED7D31"),
-         add = "boxplot", add.params = list(fill = "white"))+
-  # stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.value")+ # Add significance levels
-  # stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)+
-  theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
-ggsave2("ana_mfi2_bcl6.png",width=1.5, height=2,device="png")
-save.image("quant.RData")
 
-df<-mfi
-df$tx2[df$tx2=="BMchim.564-Icos.WT"]<-"BMchim.564"
-# df$tx2[df$tx2=="BMchim.564-Icos.Icos"]<-"564homo.Icos"
-df<-df[df$tx2 %in% c("BMchim.564","564homo.Icos","BMchim.564-Icos.RAG-TCRA","BMchim.564-Icos.RAG-TCRB",#"BMchim.564-Icos.RAG-TCRE",
-                     "BMchim.564-Icos.RAG-OTII"),]
-ggbarplot(df[df$isotype=="igg_mfi"&df$location=="cyto",], x = "tx2", y = "MFI", #color = "location",
-          # add = c("mean_sd","jitter"), #palette = c("#00AFBB", "#E7B800"),
-          add = c("mean_sd"),
-          position = position_dodge())+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-df<-df %>%mutate (tx2=factor(tx2,levels=c("BMchim.564","564homo.Icos","BMchim.564-Icos.RAG-TCRA",
-                                          "BMchim.564-Icos.RAG-TCRB","BMchim.564-Icos.RAG-OTII")))
-# df<-df[!(df$MFI>0.03 & df$tx2=="564homo.Icos"),]
-ggviolin(df[df$isotype=="igg_mfi"&df$location=="cyto",], x = "tx2", y = "MFI", fill = "tx2",
-         palette = c("grey30", "#4472C4", "#70AD47","#7030A0","#ED7D31"),
-         add = "boxplot", add.params = list(fill = "white"))+
-  stat_compare_means(comparisons = list(c("564homo.Icos","BMchim.564-Icos.RAG-TCRA"),
-                                        c("564homo.Icos","BMchim.564-Icos.RAG-TCRB"),
-                                        c("564homo.Icos","BMchim.564-Icos.RAG-OTII")), label = "p.level")+ # Add significance levels
-  # stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.5)+
-  theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
-ggsave2("ana_mfi_chim.png",width=3, height=2,device="png")
-
+unique(df[order(df$tx2),c("mouse","tx2")])
 
 ### Glomeruli quantification 
 simplify_tx <- function(df){
   df$tx2[df$tx2 %in% c("BMchim.564.CD45.1.Mb1-PDL1.CD45.1.2","BMchim.564.CD45.1.CD45.1.2")]<-"BMchim.564"
   df$tx2[df$tx2 %in% c("564homo+CD45.1+CD45.1.2","564homo+CD45.1+Mb1-PDL1.1.2","564homo+CD45.1+PD1-CD45.1.2")]<-"564homo"
   df$tx2[df$tx2 %in% c("564homo.Cxcl13-PDL1+CD45.1+PD1-CD45.1.2")]<-"564homo.Cxcl13-PDL1"
-  return(df)
+ return(df)
 }
 
 df<-read_excel("glomeruli2.xlsx",guess_max=10000) 
@@ -142,7 +132,7 @@ df$mouse<-as.numeric(gsub(".oir","",df$mouse))
 df$isotype<-NA
 for(i in unique(df$Ch)){
   df$isotype[df$Ch==i]<-str_split_i(df$file,"-",i)[df$Ch==i]
-  if(i==1){df$isotype[df$Ch==i]<-"dapi"}
+  if(i==1){df$isotype[df$Ch==1]<-"dapi"}
   if(i==4){df$isotype[df$Ch==i]<-"cd31"}
 }
 df<-left_join(df,meta[,c("mouse","tx2")],by="mouse")
@@ -156,52 +146,33 @@ for(k in c("glomeruli","avg_glom")){
   for(i in c("igg","igg2c")){
     for(j in c("2","3","allCh")){
       df<-get(k)
-      # df<-avg_glom
-      df<-simplify_tx(df)
+     df<-simplify_tx(df)
       df<-df[df$isotype==i,]
       if(j!="allCh"){df<-df[df$Ch==j,]}
       if(nrow(df)>5 & !(i=="igg2c" & j==2)){
         df$MFI<-df$MFI/1000
         ggbarplot(df, x = "tx2", y = "MFI", #color = "mouse",
-                  # palette = c("black", "#4472C4", "#FF0000","grey40"),
-                  add = c("mean_se","jitter"), #palette = c("#00AFBB", "#E7B800"),
-                  # add = c("mean_sd"),
-                  position = position_dodge())+
-          # stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.signif")+ # Add significance levels
-          # stat_compare_means(label.y = max(df$MFI[df$isotype=="igg"],na.rm=T)*1.3,method="anova")+
-          theme(legend.position="none",axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-        ggsave2(paste0(k,"_",i,"_",j,".png"),width=4, height=4,device="png")
+                 add = c("mean_se","jitter"), #palette = c("#00AFBB", "#E7B800"),
+                 position = position_dodge())+
+         theme(legend.position="none",axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+        ggsave2(paste0("./output/",k,"_",i,"_",j,".png"),width=4, height=4,device="png")
       }
     }
   }
 }
 
-# 
-# ggviolin(df, x = "tx2", y = "MFI", fill = "tx2",
-#          # palette = c("grey30", "#4472C4", "#FF0000","white"),
-#          add = "boxplot", add.params = list(fill = "white"))+
-#   # stat_compare_means(comparisons = list(c("564homo","564homo.SAP"),c("564homo","564homo.Icos")), label = "p.signif")+ # Add significance levels
-#   # stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)+
-#   labs(y=expression(paste("MFI (x", 10^{3},")")))+
-#   theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
-# 
-
 df<-glomeruli
 df<-simplify_tx(df)
 df$MFI<-df$MFI/1000
 df<-df[df$isotype %in% c("igg","igg2c"),]
-write.csv(df[order(df$Ch,df$tx2),],"./prism/glom_mfi.csv")
+write.csv(df[order(df$Ch,df$tx2,df$isotype),],"./prism/glom_mfi.csv")
 
 df<-avg_glom
 df<-simplify_tx(df)
 df$MFI<-df$MFI/1000
 df<-df[df$isotype %in% c("igg","igg2c"),]
-write.csv(df[order(df$Ch,df$tx2),],"./prism/avg_glom_mfi.csv")
+write.csv(df[order(df$Ch,df$tx2,df$isotype),],"./prism/avg_glom_mfi.csv")
 
-# x=df[df$isotype=="igg"&df$Ch==3,]
-# y=df[df$isotype=="igg2c"&df$Ch==2,]
-# plot<-left_join(x,y,by="file")
-# ggplot(plot,aes(MFI.x,MFI.y))+geom_point()
 
 ### GC quantification
 simplify_tx <- function(df){
@@ -231,11 +202,10 @@ ggbarplot(df, x = "tx2", y = "GC_follicle",
           add = c("mean_sd","jitter"), 
           position = position_dodge())+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-ggsave2("gc_follicle.png",width=6, height=4,device="png")
+ggsave2("./output/gc_follicle.png",width=6, height=4,device="png")
 write.csv(df[order(df$tx2),],"./prism/avg_gc_follicle.csv")
 
 df<-gc
-# df$GC_size[is.na(df$GC_size)]<-0
 df<-df[df$Organ=="SP",]
 df$GC_size<-df$GC_size/1000
 df<-simplify_tx(df)
@@ -243,62 +213,8 @@ ggviolin(df, x = "tx2", y = "GC_size", fill = "tx2",
          add = "boxplot", add.params = list(fill = "white"))+
   labs(y=expression(paste("GC size (x", 10^{3}," ",mu,m^{2}, ")")))+
   theme(legend.position="none",axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-ggsave2("gc_size.png",width=6, height=4,device="png")
+ggsave2("./output/gc_size.png",width=6, height=4,device="png")
 write.csv(df[order(df$tx2),],"./prism/gc_size.csv")
-# 
-# df<-avg_gc
-# df<-df[df$Organ=="SP",]
-# df<-df[df$tx2 %in% c("BMchim.564","564homo.Icos",#"BMchim.564-Icos.Icos",
-#                      "BMchim.564-Icos.RAG-TCRA","BMchim.564-Icos.RAG-TCRB",
-#                      "BMchim.564-Icos.RAG-TCRE"),]
-# # df<-df[!(df$MFI>500 & df$tx2=="564homo.Icos"),]
-# df<-df %>%mutate (tx2=factor(tx2,levels=c("BMchim.564","564homo.Icos","BMchim.564-Icos.RAG-TCRA",
-#                                           "BMchim.564-Icos.RAG-TCRB","BMchim.564-Icos.RAG-TCRE")))
-# ggbarplot(df, x = "tx2", y = "GC_follicle", #color = "location",
-#           add = c("mean_sd","jitter"), #palette = c("#00AFBB", "#E7B800"),
-#           # add = c("mean_sd"),
-#           position = position_dodge())+
-#   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-# write.csv(df[order(df$tx2),],"gc_chim.csv")
-# 
-# df<-gc
-# df$GC_size[is.na(df$GC_size)]<-0
-# df<-df[df$Organ=="SP",]
-# df<-df[df$tx2 %in% c("BMchim.564","564homo.Icos",#"BMchim.564-Icos.Icos",
-#                      "BMchim.564-Icos.RAG-TCRA","BMchim.564-Icos.RAG-TCRB",
-#                      "BMchim.564-Icos.RAG-TCRE"),]
-# # df<-df[!(df$MFI>500 & df$tx2=="564homo.Icos"),]
-# df<-df %>%mutate (tx2=factor(tx2,levels=c("BMchim.564","564homo.Icos","BMchim.564-Icos.RAG-TCRA",
-#                                           "BMchim.564-Icos.RAG-TCRB","BMchim.564-Icos.RAG-TCRE")))
-# df$GC_size<-df$GC_size/1000
-# ggbarplot(df, x = "tx2", y = "GC_size", #color = "location",
-#           add = c("mean_sd","jitter"), #palette = c("#00AFBB", "#E7B800"),
-#           # add = c("mean_sd"),
-#           position = position_dodge())+
-#   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
-#   stat_compare_means(comparisons = list(c("564homo.Icos","BMchim.564-Icos.RAG-TCRA"),
-#                                         c("BMchim.564-Icos.RAG-TCRA","BMchim.564-Icos.RAG-TCRB"),
-#                                         c("564homo.Icos","BMchim.564-Icos.RAG-TCRE")), label = "p.value")+ # Add significance levels
-#   stat_compare_means(label.y = max(df$MFI,na.rm=T)*1.3)
-# ggsave2("gc_size_chim_stats.png",width=4, height=4,device="png")
-# ggviolin(df, x = "tx2", y = "GC_size", fill = "tx2",
-#          palette = c("grey30", "#4472C4", "#70AD47","#7030A0","#ED7D31"),
-#          add = "boxplot", add.params = list(fill = "white"))+
-#   stat_compare_means(comparisons = list(c("564homo.Icos","BMchim.564-Icos.RAG-TCRA"),
-#                                         c("564homo.Icos","BMchim.564-Icos.RAG-TCRB"),
-#                                         c("564homo.Icos","BMchim.564-Icos.RAG-TCRE")), label = "p.value")+ # Add significance levels
-#   # stat_compare_means(label.y = max(df$GC_size,na.rm=T)*1.4,label.x=2)+
-#   labs(y=expression(paste("GC size (x", 10^{3}," ",mu,m^{2}, ")")))+
-#   theme(legend.position="none",axis.title.x=element_blank(),axis.text.x=element_blank())
-# ggsave2("gc_size_chim.png",width=3, height=2,device="png")
-# 
-# ggviolin(df, x = "tx2", y = "GC_size", fill = "tx2",
-#          palette = c("grey30", "#4472C4", "#70AD47","#7030A0","#ED7D31"),
-#          add = "boxplot", add.params = list(fill = "white"))+
-#   theme(legend.position="right",axis.title.x=element_blank(),axis.text.x=element_blank())
-# ggsave2("gc_size_chim_legend.png",width=3, height=2,device="png")
-# 
-# 
-# 
+
 
 
